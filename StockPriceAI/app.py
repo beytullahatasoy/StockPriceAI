@@ -1,98 +1,77 @@
-# 1. Gerekli Kütüphanelerin Yüklenmesi
+# Ana Sayfa - app.py
+
 import streamlit as st
-import pandas as pd
 import yfinance as yf
-import plotly.graph_objects as go
-import pandas_ta as ta
+import pandas as pd
 
-# 2. Sayfa ve Arayüz Ayarları
-st.set_page_config(page_title="StockWiseAI Prototip", layout="wide")
-st.title("📈 StockWiseAI - Hisse Senedi Analiz Platformu")
+# Sayfa ayarlarını yapıyoruz
+st.set_page_config(
+    page_title="StockPriceAI - Ana Sayfa",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# 3. Kenar Çubuğu (Sidebar) Ayarları
-st.sidebar.header("Analiz Ayarları")
-ticker_symbol = st.sidebar.text_input("Hisse Senedi Kodu (Örn: THYAO.IS)", "THYAO.IS").upper()
-start_date = st.sidebar.date_input("Başlangıç Tarihi", pd.to_datetime('2023-01-01'))
-end_date = st.sidebar.date_input("Bitiş Tarihi", pd.to_datetime('today'))
+# --- Piyasa Özet Paneli Fonksiyonu ---
+def get_market_data():
+    """
+    Önemli piyasa verilerini çeken fonksiyon.
+    """
+    tickers = {
+        "BIST 100": "^XU100",
+        "USD/TRY": "TRY=X",
+        "EUR/TRY": "EURTRY=X",
+        "Altın (Gram)": "GC=F" 
+    }
+    data = {}
+    for name, ticker in tickers.items():
+        # yfinance'ten son 2 günlük veriyi çekiyoruz ki dünkü kapanışı bulabilelim
+        hist = yf.Ticker(ticker).history(period="2d")
+        if not hist.empty:
+            previous_close = hist['Close'].iloc[0]
+            current_price = hist['Close'].iloc[1]
+            change = current_price - previous_close
+            percent_change = (change / previous_close) * 100
+            data[name] = {
+                "price": f"{current_price:,.2f}",
+                "change": f"{percent_change:+.2f}%"
+            }
+        else:
+            data[name] = {"price": "Veri Alınamadı", "change": ""}
+            
+    return data
 
-# --- YENİ BÖLÜM: İnteraktif Kontroller ---
-st.sidebar.header("Gösterge Ayarları")
-show_sma = st.sidebar.checkbox("Hareketli Ortalamaları Göster (SMA)", value=True)
-show_rsi = st.sidebar.checkbox("RSI Göstergesini Göster", value=True)
-# --- YENİ BÖLÜM SONU ---
+# --- Ana Sayfa Arayüzü ---
 
+# 1. Piyasa Özet Panelini Göster
+market_data = get_market_data()
+st.subheader("Güncel Piyasa Verileri")
 
-# 4. Ana Uygulama Bloğu
-try:
-    # Veriyi yfinance üzerinden çek
-    data = yf.download(ticker_symbol, start=start_date, end=end_date)
+cols = st.columns(4) # 4 sütunlu bir yapı oluşturuyoruz
+with cols[0]:
+    st.metric(label="BIST 100", value=market_data["BIST 100"]["price"], delta=market_data["BIST 100"]["change"])
+with cols[1]:
+    st.metric(label="USD/TRY", value=market_data["USD/TRY"]["price"], delta=market_data["USD/TRY"]["change"])
+with cols[2]:
+    st.metric(label="EUR/TRY", value=market_data["EUR/TRY"]["price"], delta=market_data["EUR/TRY"]["change"])
+with cols[3]:
+    st.metric(label="Altın (Ons Fiyatı)", value=market_data["Altın (Gram)"]["price"], delta=market_data["Altın (Gram)"]["change"])
 
-    # yfinance'den gelen karmaşık sütun isimlerini düzelt
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+st.markdown("---") # Ayırıcı çizgi
 
-    # Veri setinin boş olup olmadığını kontrol et
-    if data.empty:
-        st.error(f"'{ticker_symbol}' için veri bulunamadı. Lütfen hisse senedi kodunu kontrol edin (BIST için sonuna '.IS' eklemeyi unutmayın).")
-    else:
-        st.success(f"'{ticker_symbol}' verileri başarıyla çekildi.")
+# 2. Karşılama Mesajı ve Uygulama Tanıtımı
+st.title("📈 StockPriceAI'a Hoş Geldiniz")
 
-        # --- Fiyat Grafiği ve Teknik Göstergeler ---
-        st.subheader(f"{ticker_symbol} Fiyat Grafiği ve Teknik Göstergeler")
-        
-        # Plotly ile mum grafiğini oluştur
-        fig = go.Figure(data=[go.Candlestick(x=data.index,
-                        open=data['Open'],
-                        high=data['High'],
-                        low=data['Low'],
-                        close=data['Close'],
-                        name='Fiyat')])
-        
-        # SADECE KULLANICI İSTERSE HESAPLA VE GÖSTER (SMA)
-        if show_sma:
-            # Hareketli Ortalamaları (SMA) hesapla
-            data['SMA20'] = data['Close'].rolling(window=20).mean()
-            data['SMA50'] = data['Close'].rolling(window=50).mean()
-            # Hareketli Ortalamaları grafiğe ekle
-            fig.add_trace(go.Scatter(x=data.index, y=data['SMA20'], mode='lines', name='20-Günlük Ortalama (SMA)'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['SMA50'], mode='lines', name='50-Günlük Ortalama (SMA)'))
+st.markdown("""
+StockPriceAI, BIST, kripto ve global piyasalardaki varlıkları analiz etmenize olanak tanıyan, 
+yapay zeka destekli bir finansal analiz platformudur. 
 
-        # Grafik ayarlarını güncelle
-        fig.update_layout(
-            title=f'{ticker_symbol} Fiyat ve Hareketli Ortalamalar',
-            yaxis_title='Fiyat (TL)',
-            xaxis_rangeslider_visible=False,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # SADECE KULLANICI İSTERSE HESAPLA VE GÖSTER (RSI)
-        if show_rsi:
-            st.subheader("RSI (Göreceli Güç Endeksi)")
-            # pandas-ta kullanarak RSI'ı hesapla
-            data.ta.rsi(append=True)
-            # RSI için yeni bir grafik figürü oluştur
-            rsi_fig = go.Figure()
-            # RSI çizgisini grafiğe ekle
-            rsi_fig.add_trace(go.Scatter(x=data.index, y=data['RSI_14'], mode='lines', name='RSI'))
-            # RSI için referans çizgileri ekle
-            rsi_fig.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Aşırı Alım", annotation_position="bottom right")
-            rsi_fig.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Aşırı Satım", annotation_position="top right")
-            # RSI grafik ayarlarını güncelle
-            rsi_fig.update_layout(
-                title=f'{ticker_symbol} RSI Grafiği',
-                yaxis_title='RSI Değeri',
-                yaxis=dict(range=[0, 100])
-            )
-            st.plotly_chart(rsi_fig, use_container_width=True)
+**Neler Yapabilirsiniz?**
 
-        # --- Hacim Analizi ---
-        st.subheader("Hacim Analizi")
-        st.bar_chart(data['Volume'])
+- **Detaylı Analiz:** Kenar çubuğundaki menüden ilgilendiğiniz piyasayı seçerek başlayın.
+- **Teknik Göstergeler:** Hareketli ortalamalar (SMA) ve RSI gibi popüler göstergeleri grafikler üzerinde inceleyin.
+- **AI Destekli Sinyaller:** Gelişmiş LSTM sinir ağı modelimizi kullanarak gelecek gün için "AL/SAT/BEKLE" tavsiyeleri ve güven puanları alın.
 
-        # --- Son Veriler Tablosu ---
-        st.subheader("Son Güncel Veriler")
-        st.dataframe(data.tail(10))
+Başlamak için sol taraftaki menüden bir sayfa seçin!
+""")
 
-except Exception as e:
-    st.error(f"Bir hata oluştu: {e}")
+st.info("Bu uygulama bir staj projesi kapsamında geliştirilmiştir ve yatırım tavsiyesi niteliği taşımaz.", icon="⚠️")
