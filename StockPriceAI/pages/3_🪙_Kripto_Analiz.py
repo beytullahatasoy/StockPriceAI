@@ -1,4 +1,4 @@
-# pages/2_🌍_Global_Piyasalar.py
+# pages/3_🪙_Kripto_Analiz.py
 
 import streamlit as st
 import pandas as pd
@@ -8,62 +8,61 @@ import pandas_ta as ta
 import numpy as np
 
 # --- Sayfa Başlığı ---
-st.markdown("<h1 style='text-align: center;'>🌍 Global Piyasalar Analizi</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🪙 Kripto Para Analizi</h1>", unsafe_allow_html=True)
 
 
-# --- Hisse Senedi Listesi ---
-global_tickers = {
-    "Apple (AAPL)": "AAPL",
-    "Microsoft (MSFT)": "MSFT",
-    "Google (GOOGL)": "GOOGL",
-    "Amazon (AMZN)": "AMZN",
-    "NVIDIA (NVDA)": "NVDA",
-    "Tesla (TSLA)": "TSLA",
-    "Meta Platforms (META)": "META",
-    "JPMorgan Chase (JPM)": "JPM",
-    "Exxon Mobil (XOM)": "XOM",
-    "Visa (V)": "V"
+# --- Kripto Para Listesi ---
+crypto_tickers = {
+    "Bitcoin (BTC-USD)": "BTC-USD",
+    "Ethereum (ETH-USD)": "ETH-USD",
+    "Tether (USDT-USD)": "USDT-USD",
+    "BNB (BNB-USD)": "BNB-USD",
+    "Solana (SOL-USD)": "SOL-USD",
+    "XRP (XRP-USD)": "XRP-USD",
+    "Cardano (ADA-USD)": "ADA-USD",
+    "Dogecoin (DOGE-USD)": "DOGE-USD",
+    "Avalanche (AVAX-USD)": "AVAX-USD",
+    "Shiba Inu (SHIB-USD)": "SHIB-USD"
 }
 
 
 # --- Oturum Durumu (Session State) ile Sayfa Akışını Yönetme ---
-# Farklı sayfalardaki seçimlerin karışmaması için session_state anahtarını değiştiriyoruz
-if 'selected_global_stock' not in st.session_state:
-    st.session_state['selected_global_stock'] = None
+if 'selected_crypto' not in st.session_state:
+    st.session_state['selected_crypto'] = None
 
-if st.session_state['selected_global_stock'] is None:
-    st.markdown("<h3 style='text-align: center;'>Lütfen Analiz Etmek İstediğiniz Global Hisseleri Seçin</h3>", unsafe_allow_html=True)
+if st.session_state['selected_crypto'] is None:
+    st.markdown("<h3 style='text-align: center;'>Lütfen Analiz Etmek İstediğiniz Kripto Varlığı Seçin</h3>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        selected_stock_name = st.selectbox(
-            "Bir hisse senedi seçin:",
-            options=list(global_tickers.keys()),
+        selected_crypto_name = st.selectbox(
+            "Bir kripto varlık seçin:",
+            options=list(crypto_tickers.keys()),
             label_visibility="collapsed"
         )
         
-        if st.button("Analiz Et", use_container_width=True, key="global_analyze"):
-            st.session_state['selected_global_stock'] = global_tickers[selected_stock_name]
+        if st.button("Analiz Et", use_container_width=True, key="crypto_analyze"):
+            st.session_state['selected_crypto'] = crypto_tickers[selected_crypto_name]
             st.rerun()
 
     st.markdown("---")
 
-    st.subheader("Popüler Global Hisseler Güncel Durum")
+    st.subheader("Popüler Kripto Varlıklar Güncel Durum")
     
     @st.cache_data(ttl=600)
-    def get_global_prices():
-        tickers_list = list(global_tickers.values())
+    def get_crypto_prices():
+        tickers_list = list(crypto_tickers.values())
         data = yf.download(tickers_list, period="2d")
         
         summary = []
         for ticker in tickers_list:
             try:
-                stock_name = [name for name, t in global_tickers.items() if t == ticker][0]
+                crypto_name = [name for name, t in crypto_tickers.items() if t == ticker][0]
                 last_price = data['Close'][ticker].iloc[-1]
                 prev_price = data['Close'][ticker].iloc[-2]
                 change_pct = ((last_price - prev_price) / prev_price) * 100
                 summary.append({
-                    "Hisse": stock_name,
+                    "Kripto Varlık": crypto_name,
                     "Son Fiyat": f"${last_price:,.2f}",
                     "Günlük %": f"{change_pct:+.2f}%"
                 })
@@ -71,7 +70,7 @@ if st.session_state['selected_global_stock'] is None:
                 continue
         return pd.DataFrame(summary)
 
-    price_summary_df = get_global_prices()
+    price_summary_df = get_crypto_prices()
     
     def color_change(val):
         color = 'red' if isinstance(val, str) and val.startswith('-') else 'green' if isinstance(val, str) and val.startswith('+') else 'white'
@@ -84,14 +83,14 @@ if st.session_state['selected_global_stock'] is None:
     )
 
 else:
-    ticker_symbol = st.session_state['selected_global_stock']
+    ticker_symbol = st.session_state['selected_crypto']
     
-    if st.sidebar.button("↩️ Başka Hisse Seç", key="global_back"):
-        st.session_state['selected_global_stock'] = None
+    if st.sidebar.button("↩️ Başka Varlık Seç", key="crypto_back"):
+        st.session_state['selected_crypto'] = None
         st.rerun()
 
     st.sidebar.header("Zaman Aralığı")
-    time_range = st.sidebar.radio("Zaman Aralığı Seçin:", ("Son 1 Ay", "Son 6 Ay", "Son 1 Yıl", "Son 3 Yıl", "Tümü"), index=2, key="global_time")
+    time_range = st.sidebar.radio("Zaman Aralığı Seçin:", ("Son 1 Ay", "Son 6 Ay", "Son 1 Yıl", "Son 3 Yıl", "Tümü"), index=2, key="crypto_time")
 
     end_date = pd.Timestamp.now()
     if time_range == "Son 1 Ay": start_date = end_date - pd.DateOffset(months=1)
@@ -101,11 +100,11 @@ else:
     else: start_date = pd.Timestamp('1990-01-01')
 
     st.sidebar.header("Gösterge Ayarları")
-    show_sma = st.sidebar.checkbox("Hareketli Ortalamalar (SMA)", value=True, key="global_sma")
-    show_rsi = st.sidebar.checkbox("RSI Göstergesi", value=True, key="global_rsi")
+    show_sma = st.sidebar.checkbox("Hareketli Ortalamalar (SMA)", value=True, key="crypto_sma")
+    show_rsi = st.sidebar.checkbox("RSI Göstergesi", value=True, key="crypto_rsi")
 
     st.sidebar.header("Yapay Zeka")
-    run_ai_prediction = st.sidebar.button("AI ile Sinyal Üret", key="global_ai")
+    run_ai_prediction = st.sidebar.button("AI ile Sinyal Üret", key="crypto_ai")
 
     try:
         data = yf.download(ticker_symbol, start=start_date, end=end_date)
