@@ -1,173 +1,162 @@
+# model_utils.py
+# Yardımcı fonksiyonlar: veri çekme, pencereleme, baseline, LSTM/GRU eğitim & değerlendirme
+
+import os, random
 import numpy as np
 import pandas as pd
 import yfinance as yf
+
 import torch
 import torch.nn as nn
+
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 
-# =======================
-# PyTorch Modelleri
-# =======================
-
-class LSTMModel(nn.Module):
-    def __init__(self, input_size: int = 1, hidden_layer_size: int = 100, output_size: int = 1):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, batch_first=True)
-        self.linear = nn.Linear(hidden_layer_size, output_size)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, seq_len, input_size)
-        out, _ = self.lstm(x)            # (B, seq_len, H)
-        out = out[:, -1, :]              # (B, H)
-        out = self.linear(out)           # (B, 1)
-        return out
+# ------------ Genel yardımcılar ------------
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
-class GRUModel(nn.Module):
-    def __init__(self, input_size: int = 1, hidden_layer_size: int = 100, output_size: int = 1):
-        super().__init__()
-        self.gru = nn.GRU(input_size, hidden_layer_size, batch_first=True)
-        self.linear = nn.Linear(hidden_layer_size, output_size)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out, _ = self.gru(x)
-        out = out[:, -1, :]
-        out = self.linear(out)
-        return out
-
-
-# =======================
-# Yardımcı Fonksiyonlar
-# =======================
-
-def create_dataset(series_scaled: np.ndarray, look_back: int = 60):
+def load_prices(ticker: str, start=None, end=None, interval: str = "1d") -> pd.DataFrame:
     """
-    Tek değişkenli zaman serisini (N, 1) alır ve
-    (num_samples, look_back, 1) X ile (num_samples,) y üretir.
+    yfinance'tan fiyat verisini indirir (Auto Adjust açık).
+    Dönen df: ['close'] kolonu (NaN'ler atılmış).
+    """
+    df = yf.download(ticker, start=start, end=end, interval=interval, auto_adjust=True, progress=False)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    if 'Close' not in df.columns:
+        raise ValueError(f"{ticker} için 'Close' kolonu bulunamadı.")
+    return df[['Close']].dropna().rename(columns={'Close': 'close'})
+
+
+def ts_train_test_split(series: pd.Series, test_ratio=0.2):
+    """
+    Zaman serisini sırayı bozmadan train/test'e ayırır.
+    """
+    n = len(series)
+    split_idx = max(30, int(n * (1 - test_ratio)))
+    return series.iloc[:split_idx].copy(), series.iloc[split_idx:].copy(), split_idx
+
+
+def make_windows(arr: np.ndarray, win: int = 30, horizon: int = 1):
+    """
+    Kaydırmalı pencere (X: [win], y: gelecek horizon).
     """
     X, y = [], []
-    for i in range(len(series_scaled) - look_back - 1):
-        X.append(series_scaled[i:i + look_back, 0])   # (look_back,)
-        y.append(series_scaled[i + look_back, 0])     # scalar
-    X = np.array(X).reshape(-1, look_back, 1)         # (N, look_back, 1)
-    y = np.array(y).reshape(-1)                       # (N,)
+    for i in range(win, len(arr) - horizon + 1):
+        X.append(arr[i - win:i])
+        y.append(arr[i + horizon - 1])
+    X = np.array(X, dtype=np.float32)
+    y = np.array(y, dtype=np.float32)
     return X, y
 
 
-def _to_tensor(x: np.ndarray) -> torch.Tensor:
-    return torch.from_numpy(x).float()
+# ------------ Modeller ------------
+class RNNModel(nn.Module):
+    def __init__(self, kind='lstm', input_size=1, hidden=64, layers=2, dropout=0.0):
+        super().__init__()
+        rnn = nn.LSTM if kind.lower() == 'lstm' else nn.GRU
+        self.rnn = rnn(
+            input_size=input_size,
+            hidden_size=hidden,
+            num_layers=layers,
+            dropout=(dropout if layers > 1 else 0.0),
+            batch_first=True
+        )
+        self.fc = nn.Linear(hidden, 1)
+
+    def forward(self, x):
+        out, _ = self.rnn(x)          # (B, T, H)
+        out = out[:, -1, :]           # (B, H) son zaman adımı
+        return self.fc(out)           # (B, 1)
 
 
-def train_model(model: nn.Module, train_X: np.ndarray, train_Y: np.ndarray, epochs: int = 10, lr: float = 1e-3):
+def train_eval(
+    kind: str,
+    train_vals: np.ndarray,
+    test_vals: np.ndarray,
+    win: int = 30,
+    epochs: int = 20,
+    hidden: int = 64,
+    layers: int = 2,
+    lr: float = 1e-3,
+    device: str | None = None
+):
     """
-    Vektörize eğitim (küçük/orta veri için hızlı ve stabil).
+    LSTM/GRU eğitir ve TEST dönemi tahminleri ile metrikleri döndürür.
+    return: (inv_preds, inv_y, rmse, mae, mape)
     """
+    # --- seed & device ---
+    set_seed(42)
+    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # --- ölçekleme: sadece train'e fit ---
+    scaler = MinMaxScaler()
+    train_scaled = scaler.fit_transform(train_vals.reshape(-1, 1)).ravel()
+    test_scaled  = scaler.transform(test_vals.reshape(-1, 1)).ravel()
+
+    # --- pencereleme ---
+    Xtr, ytr = make_windows(train_scaled, win=win)
+    # test pencereleri için train'in son win kısmını ekleyerek süreklilik sağla
+    concat = np.concatenate([train_scaled[-win:], test_scaled])
+    Xte, yte = make_windows(concat, win=win)
+
+    # tensörler
+    Xtr = torch.tensor(Xtr[..., None]).to(device)  # (B, T, 1)
+    ytr = torch.tensor(ytr[..., None]).to(device)  # (B, 1)
+    Xte = torch.tensor(Xte[..., None]).to(device)
+    yte = torch.tensor(yte[..., None]).to(device)
+
+    # --- model & optim ---
+    model = RNNModel(kind=kind, hidden=hidden, layers=layers).to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    X = _to_tensor(train_X)                 # (N, look_back, 1)
-    y = _to_tensor(train_Y).unsqueeze(1)    # (N, 1)
-
+    # --- eğitim ---
     model.train()
     for _ in range(epochs):
-        optimizer.zero_grad()
-        y_pred = model(X)                   # (N, 1)
-        loss = loss_fn(y_pred, y)
+        opt.zero_grad()
+        pred = model(Xtr)
+        loss = loss_fn(pred, ytr)
         loss.backward()
-        optimizer.step()
+        opt.step()
 
-    return float(loss.item())
-
-
-# =======================
-# Ana Pipeline
-# =======================
-
-def run_prediction_pipeline(ticker_symbol: str, look_back: int = 60, epochs: int = 10):
-    """
-    1) Veri çek
-    2) MinMax ölçekle
-    3) Train/Test ayır
-    4) LSTM ve GRU eğit
-    5) Eğitim & test tahminlerini üret
-    6) Tahminleri orijinal skalaya ve zaman eksenine yerleştir
-    7) Görselleştirme için DataFrame döndür
-    """
-    # 1) Veri
-    data = yf.download(ticker_symbol, period="3y", progress=False)
-    if data.empty:
-        raise ValueError(f"{ticker_symbol} için veri çekilemedi.")
-
-    # Plotly’de timezone kaynaklı sorun yaşamamak için
-    if hasattr(data.index, "tz") and data.index.tz is not None:
-        data.index = data.index.tz_localize(None)
-
-    close = data["Close"].astype(float).values.reshape(-1, 1)
-
-    # 2) Ölçekleme
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled = scaler.fit_transform(close)  # (N, 1)
-
-    # 3) Train/Test
-    train_size = int(len(scaled) * 0.80)
-    train, test = scaled[:train_size, :], scaled[train_size:, :]
-
-    # 4) Dataset
-    train_X, train_Y = create_dataset(train, look_back=look_back)
-    test_X, test_Y = create_dataset(test, look_back=look_back)
-
-    # 5) Modeller
-    lstm = LSTMModel(input_size=1)
-    gru = GRUModel(input_size=1)
-
-    lstm_loss = train_model(lstm, train_X, train_Y, epochs=epochs)
-    gru_loss = train_model(gru, train_X, train_Y, epochs=epochs)
-
-    # 6) Tahminler
-    lstm.eval()
-    gru.eval()
+    # --- değerlendirme (test) ---
+    model.eval()
     with torch.no_grad():
-        lstm_train_pred = lstm(_to_tensor(train_X)).numpy()  # (N_train, 1)
-        lstm_test_pred  = lstm(_to_tensor(test_X)).numpy()   # (N_test, 1)
-        gru_train_pred  = gru(_to_tensor(train_X)).numpy()
-        gru_test_pred   = gru(_to_tensor(test_X)).numpy()
+        preds_te = model(Xte).cpu().numpy().ravel()
 
-    # 7) Orijinal skala
-    lstm_train_pred = scaler.inverse_transform(lstm_train_pred)
-    lstm_test_pred  = scaler.inverse_transform(lstm_test_pred)
-    gru_train_pred  = scaler.inverse_transform(gru_train_pred)
-    gru_test_pred   = scaler.inverse_transform(gru_test_pred)
+    # --- inverse scale ---
+    inv_preds = scaler.inverse_transform(preds_te.reshape(-1, 1)).ravel()
+    inv_y     = scaler.inverse_transform(yte.cpu().numpy().reshape(-1, 1)).ravel()
 
-    # 8) Grafik için hizalama (1D float seriler)
-    results_df = data.copy()
-    N = len(close)
+    # --- metrikler (RMSE = sqrt(MSE)) ---
+    mse  = mean_squared_error(inv_y, inv_preds)
+    rmse = np.sqrt(mse)
+    mae  = mean_absolute_error(inv_y, inv_preds)
+    mape = np.mean(np.abs((inv_y - inv_preds) / np.clip(np.abs(inv_y), 1e-8, None))) * 100
 
-    # LSTM
-    train_plot_lstm = np.full(N, np.nan, dtype="float64")
-    train_plot_lstm[look_back:look_back + len(lstm_train_pred)] = lstm_train_pred.ravel()
+    return inv_preds, inv_y, rmse, mae, mape
 
-    test_plot_lstm = np.full(N, np.nan, dtype="float64")
-    test_start = len(lstm_train_pred) + (look_back * 2) + 1
-    test_end = min(test_start + len(lstm_test_pred), N)
-    if test_start < N:
-        test_plot_lstm[test_start:test_end] = lstm_test_pred.ravel()[: (test_end - test_start)]
 
-    # GRU
-    train_plot_gru = np.full(N, np.nan, dtype="float64")
-    train_plot_gru[look_back:look_back + len(gru_train_pred)] = gru_train_pred.ravel()
+def baseline_naive(test_vals: np.ndarray):
+    """
+    Naive baseline: y_hat_t = y_{t-1}
+    test_vals: test dönemindeki gerçek kapanış değerleri (1D array)
+    Döndürür: (y_pred, y_true, rmse, mae, mape)
+    """
+    y_true = test_vals[1:]
+    y_pred = test_vals[:-1]
 
-    test_plot_gru = np.full(N, np.nan, dtype="float64")
-    test_start_g = len(gru_train_pred) + (look_back * 2) + 1
-    test_end_g = min(test_start_g + len(gru_test_pred), N)
-    if test_start_g < N:
-        test_plot_gru[test_start_g:test_end_g] = gru_test_pred.ravel()[: (test_end_g - test_start_g)]
+    mse  = mean_squared_error(y_true, y_pred)   # eski sklearn sürümleriyle uyumlu
+    rmse = np.sqrt(mse)
+    mae  = mean_absolute_error(y_true, y_pred)
+    mape = np.mean(np.abs((y_true - y_pred) / np.clip(np.abs(y_true), 1e-8, None))) * 100
 
-    # 9) Sonuç DF (1D float kolonlar)
-    results_df["Close"] = results_df["Close"].astype("float64")
-    results_df["LSTM_Eğitim_Tahmin"] = pd.Series(train_plot_lstm, index=results_df.index, dtype="float64")
-    results_df["LSTM_Test_Tahmin"]   = pd.Series(test_plot_lstm,  index=results_df.index, dtype="float64")
-    results_df["GRU_Eğitim_Tahmin"]  = pd.Series(train_plot_gru,  index=results_df.index, dtype="float64")
-    results_df["GRU_Test_Tahmin"]    = pd.Series(test_plot_gru,   index=results_df.index, dtype="float64")
-
-    return results_df, lstm_loss, gru_loss
+    return y_pred, y_true, rmse, mae, mape

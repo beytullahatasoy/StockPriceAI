@@ -1,90 +1,128 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
-from model_utils import run_prediction_pipeline
 
-st.set_page_config(page_title="Karşılaştırmalı Model Eğitimi", layout="wide")
+from model_utils import load_prices, ts_train_test_split, train_eval, baseline_naive
 
-# --- Başlık & Açıklama ---
-st.markdown("<h1 style='text-align:center;'>🤖 PyTorch ile LSTM ve GRU Karşılaştırması</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;color:grey;'>Seçtiğiniz hisse için LSTM ve GRU modellerini eğitin, test tahminlerini görselleştirin.</p>", unsafe_allow_html=True)
-st.markdown("---")
+st.set_page_config(
+    page_title="Karşılaştırmalı Model Eğitimi",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- Hisse Listesi ---
-bist30_tickers = {
-    "Akbank (AKBNK.IS)": "AKBNK.IS", "Arçelik (ARCLK.IS)": "ARCLK.IS", "Aselsan (ASELS.IS)": "ASELS.IS",
-    "BİM Mağazalar (BIMAS.IS)": "BIMAS.IS", "Ereğli Demir Çelik (EREGL.IS)": "EREGL.IS", "Ford Otosan (FROTO.IS)": "FROTO.IS",
-    "Garanti Bankası (GARAN.IS)": "GARAN.IS", "Koç Holding (KCHOL.IS)": "KCHOL.IS", "Pegasus (PGSUS.IS)": "PGSUS.IS",
-    "Sabancı Holding (SAHOL.IS)": "SAHOL.IS", "Şişecam (SISE.IS)": "SISE.IS", "Turkcell (TCELL.IS)": "TCELL.IS",
-    "Türk Hava Yolları (THYAO.IS)": "THYAO.IS", "Tüpraş (TUPRS.IS)": "TUPRS.IS", "Yapı Kredi (YKBNK.IS)": "YKBNK.IS"
+st.markdown("<h1 style='text-align:center;'>🤖 LSTM vs GRU Karşılaştırması</h1>", unsafe_allow_html=True)
+st.caption("Aynı veri ayrımı üzerinde baseline, LSTM ve GRU performanslarını kıyasla.")
+
+# --- Sembol & Parametreler ---
+tickers = {
+    "Akbank (AKBNK.IS)": "AKBNK.IS",
+    "Aselsan (ASELS.IS)": "ASELS.IS",
+    "THY (THYAO.IS)": "THYAO.IS",
+    "Garanti (GARAN.IS)": "GARAN.IS",
+    "BIST100 (XU100.IS)": "XU100.IS",
+    "Apple (AAPL)": "AAPL"
 }
 
-# --- Girdiler ---
-col1, col2, col3 = st.columns([2, 1, 1])
-with col1:
-    selected_name = st.selectbox("Analiz edilecek hisse:", options=list(bist30_tickers.keys()))
-with col2:
-    epoch_count = st.slider("Epoch", min_value=5, max_value=50, step=5, value=15,
-                            help="Epoch arttıkça öğrenme artar, süre uzar.")
-with col3:
-    look_back = st.slider("Look-back (seq_len)", min_value=20, max_value=120, step=10, value=60,
-                          help="Girdi penceresi uzunluğu.")
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    name = st.selectbox("Sembol", list(tickers.keys()))
+with c2:
+    win = st.number_input("Pencere (gün)", min_value=20, max_value=120, value=30, step=5)
+with c3:
+    epochs = st.number_input("Epoch", min_value=5, max_value=100, value=20, step=5)
+with c4:
+    hidden = st.number_input("Hidden size", min_value=16, max_value=256, value=64, step=16)
 
-ticker = bist30_tickers[selected_name]
+c5, c6 = st.columns(2)
+with c5:
+    start = st.date_input("Başlangıç", pd.Timestamp.today() - pd.DateOffset(years=3))
+with c6:
+    end   = st.date_input("Bitiş", pd.Timestamp.today())
 
-if st.button(f"📈 {epoch_count} Epoch ile Eğit & Analiz Başlat", use_container_width=True, type="primary"):
-    try:
-        with st.spinner(f"'{selected_name}' için eğitim ve tahmin çalışıyor..."):
-            results_df, lstm_loss, gru_loss = run_prediction_pipeline(
-                ticker, look_back=look_back, epochs=epoch_count
+run = st.button("Eğit ve Karşılaştır", type="primary", use_container_width=True)
+st.markdown("---")
+
+if run:
+    with st.spinner("Veri çekiliyor ve modeller eğitiliyor..."):
+        df = load_prices(tickers[name], start=start, end=end)
+
+        if len(df) < (win * 2 + 30):
+            st.warning("Veri kısa görünüyor. Daha uzun bir tarih aralığı seçin.")
+        else:
+            # ---- split ve eğitim ----
+            train_s, test_s, split_idx = ts_train_test_split(df['close'], test_ratio=0.2)
+
+            b_pred, b_true, b_rmse, b_mae, b_mape = baseline_naive(test_s.values)
+
+            lstm_pred, y_true, l_rmse, l_mae, l_mape = train_eval(
+                kind='lstm',
+                train_vals=train_s.values,
+                test_vals=test_s.values,
+                win=win, epochs=epochs, hidden=hidden
             )
 
-        st.success("✅ Analiz başarıyla tamamlandı!")
+            gru_pred, _, g_rmse, g_mae, g_mape = train_eval(
+                kind='gru',
+                train_vals=train_s.values,
+                test_vals=test_s.values,
+                win=win, epochs=epochs, hidden=hidden
+            )
 
-        # --- Görselleştirme ---
-        st.subheader(f"{selected_name} - Model Tahmin Grafiği")
+            # --------- Grafik: gerçek vs LSTM vs GRU + split çizgisi ---------
+            fig = go.Figure()
+            idx = df.index
+            train_idx = idx[:split_idx]
+            test_idx  = idx[split_idx:]
 
-        # Tipleri garanti et
-        results_df["Close"] = pd.to_numeric(results_df["Close"], errors="coerce")
-        for c in ["LSTM_Test_Tahmin", "GRU_Test_Tahmin"]:
-            if c in results_df.columns:
-                results_df[c] = pd.to_numeric(results_df[c], errors="coerce")
+            # Gerçek değerler
+            fig.add_trace(go.Scatter(x=train_idx, y=df['close'].iloc[:split_idx],
+                                     mode="lines", name="Gerçek (Train)"))
+            fig.add_trace(go.Scatter(x=test_idx,  y=df['close'].iloc[split_idx:],
+                                     mode="lines", name="Gerçek (Test)"))
 
-        close_series = results_df["Close"]
-        lstm_test = results_df["LSTM_Test_Tahmin"].dropna()
-        gru_test  = results_df["GRU_Test_Tahmin"].dropna()
+            # Train/Test ayrım çizgisi — add_vline yerine shape + annotation (datetime ile sorunsuz)
+            if len(train_idx) > 0:
+                split_x = pd.to_datetime(train_idx[-1])
+                fig.add_shape(
+                    type="line",
+                    x0=split_x, x1=split_x, y0=0, y1=1,
+                    xref="x", yref="paper",
+                    line=dict(dash="dash", width=1)
+                )
+                fig.add_annotation(
+                    x=split_x, y=1, xref="x", yref="paper",
+                    text="Train/Test Split", showarrow=False, yanchor="bottom"
+                )
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=results_df.index, y=close_series.values,
-                                 mode="lines", name="Gerçek Fiyat"))
-        if not lstm_test.empty:
-            fig.add_trace(go.Scatter(x=lstm_test.index, y=lstm_test.values,
-                                     mode="lines", name="LSTM Test Tahmini"))
-        if not gru_test.empty:
-            fig.add_trace(go.Scatter(x=gru_test.index, y=gru_test.values,
-                                     mode="lines", name="GRU Test Tahmini"))
+            # Baseline, LSTM ve GRU tahminleri
+            fig.add_trace(go.Scatter(x=test_idx[1:], y=b_pred,
+                                     mode="lines", name="Naive (t-1)"))
+            fig.add_trace(go.Scatter(x=test_idx, y=lstm_pred,
+                                     mode="lines", name="LSTM"))
+            fig.add_trace(go.Scatter(x=test_idx, y=gru_pred,
+                                     mode="lines", name="GRU"))
 
-        fig.update_layout(
-            yaxis_title="Fiyat (TL)",
-            xaxis_title="Tarih",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=20, r=20, t=10, b=10),
-        )
-        fig.update_traces(connectgaps=True)  # NaN boşluklarını bağla
+            fig.update_layout(
+                title=f"{name} — LSTM vs GRU",
+                yaxis_title="Fiyat",
+                xaxis_rangeslider_visible=False,
+                legend=dict(orientation="h", y=1.12, x=1, xanchor="right")
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
+            # --------- Metrik Tablosu ---------
+            metrics = pd.DataFrame([
+                ["Naive (t-1)", b_rmse, b_mae, b_mape],
+                ["LSTM",        l_rmse, l_mae, l_mape],
+                ["GRU",         g_rmse, g_mae, g_mape],
+            ], columns=["Model", "RMSE", "MAE", "MAPE (%)"])
 
-        st.markdown("---")
-        st.subheader("Model Performans Metrikleri")
+            st.subheader("Test Dönemi Metrikleri")
+            st.dataframe(
+                metrics.style.format({"RMSE": "{:.3f}", "MAE": "{:.3f}", "MAPE (%)": "{:.2f}"}),
+                use_container_width=True
+            )
 
-        m1, m2 = st.columns(2)
-        with m1:
-            st.metric("LSTM Model Eğitim Kaybı (MSE)", f"{lstm_loss:.6f}")
-            st.info("Daha düşük MSE ➜ eğitim verisine daha iyi uyum.")
-        with m2:
-            st.metric("GRU Model Eğitim Kaybı (MSE)", f"{gru_loss:.6f}")
-            st.info("LSTM/GRU kayıplarını kıyaslayarak öğrenme kalitesini görebilirsin.")
-
-    except Exception as e:
-        st.error(f"Bir hata oluştu: {e}")
-        st.warning("İnternet bağlantını kontrol et; farklı hisse/epoch/seq_len ile tekrar dene.")
+            best = metrics.sort_values("RMSE").iloc[0]
+            st.info(f"En düşük RMSE: **{best['Model']}** — Sunumda grafiği ve bu tabloyu kullan.")
