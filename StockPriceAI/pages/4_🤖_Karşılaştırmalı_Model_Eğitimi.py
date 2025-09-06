@@ -12,7 +12,6 @@ st.set_page_config(
 )
 
 st.markdown("<h1 style='text-align:center;'>🤖 LSTM vs GRU Karşılaştırması</h1>", unsafe_allow_html=True)
-st.caption("Aynı veri ayrımı üzerinde baseline, LSTM ve GRU performanslarını kıyasla.")
 
 # --- Sembol & Parametreler ---
 tickers = {
@@ -28,11 +27,11 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     name = st.selectbox("Sembol", list(tickers.keys()))
 with c2:
-    win = st.number_input("Pencere (gün)", min_value=20, max_value=120, value=30, step=5)
+    win = st.number_input("Gün sayısı", min_value=20, max_value=120, value=30, step=5)
 with c3:
-    epochs = st.number_input("Epoch", min_value=5, max_value=100, value=20, step=5)
+    epochs = st.number_input("Epoch", min_value=5, max_value=100, value=30, step=5)
 with c4:
-    hidden = st.number_input("Hidden size", min_value=16, max_value=256, value=64, step=16)
+    hidden = st.number_input("Hidden size", min_value=16, max_value=256, value=96, step=16)
 
 c5, c6 = st.columns(2)
 with c5:
@@ -113,16 +112,14 @@ if run:
 
             # --------- Metrik Tablosu ---------
             metrics = pd.DataFrame([
-                ["Naive (t-1)", b_rmse, b_mae, b_mape],
                 ["LSTM",        l_rmse, l_mae, l_mape],
                 ["GRU",         g_rmse, g_mae, g_mape],
             ], columns=["Model", "RMSE", "MAE", "MAPE (%)"])
 
-            st.subheader("Test Dönemi Metrikleri")
+            st.subheader("Test Metrikleri")
             st.dataframe(
                 metrics.style.format({"RMSE": "{:.3f}", "MAE": "{:.3f}", "MAPE (%)": "{:.2f}"}),
                 use_container_width=True
             )
 
             best = metrics.sort_values("RMSE").iloc[0]
-            st.info(f"En düşük RMSE: **{best['Model']}** — Sunumda grafiği ve bu tabloyu kullan.")

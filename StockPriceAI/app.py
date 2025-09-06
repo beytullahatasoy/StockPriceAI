@@ -1,5 +1,3 @@
-# Ana Sayfa - app.py
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -29,7 +27,7 @@ def get_market_data():
     for name, ticker in tickers.items():
         try:
             # Tüm veriler için son 2 günü çekmek yeterli
-            hist = yf.Ticker(ticker).history(period="2d", interval="1d")
+            hist = yf.Ticker(ticker).history(period="3d", interval="1d")
 
             if not hist.empty and len(hist) > 1:
                 previous_close = hist['Close'].iloc[-2]
@@ -51,7 +49,7 @@ def get_market_data():
 # --- Ana Sayfa Arayüzü ---
 
 # 1. Karşılama Mesajı ve Uygulama Tanıtımı (Ortalandı)
-st.markdown("<h1 style='text-align: center;'>📈 StockPriceAI'a Hoş Geldiniz</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'> StockPriceAI'a Hoş Geldiniz</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: grey;'>Yapay zeka destekli finansal analiz platformu</p>", unsafe_allow_html=True)
 st.markdown("---") 
 
@@ -74,9 +72,9 @@ st.markdown("---")
 # 3. Açıklama Bölümü
 st.subheader("Neler Yapabilirsiniz?")
 st.markdown("""
-- **🤖 Model Eğitimi:** Kendi yapay zeka modellerinizi farklı parametrelerle eğitin ve performanslarını takip edin.
-- **🔮 AI Tahminleri:** Eğittiğiniz veya hazır modelleri kullanarak geleceğe yönelik fiyat tahminleri ve trend analizleri alın.
 - **📊 Detaylı Analiz:** Yakında eklenecek olan BIST100, Kripto ve Global Piyasalar sayfalarında derinlemesine analizler yapın.
+- **🤖 Model Eğitimi:** Kendi yapay zeka modellerinizi farklı parametrelerle eğitin ve performanslarını takip edin.
+
 """)
 st.write("Başlamak için sol taraftaki menüden bir sayfa seçin!")
 

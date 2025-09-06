@@ -1,5 +1,3 @@
-# pages/1_📈_BIST100_Analiz.py
-
 import streamlit as st
 import pandas as pd
 import yfinance as yf
@@ -60,7 +58,7 @@ if st.session_state['selected_bist_stock'] is None:
     @st.cache_data(ttl=600)
     def get_bist_prices():
         tickers_list = list(bist30_tickers.values())
-        data = yf.download(tickers_list, period="2d")
+        data = yf.download(tickers_list, period="3d")
         
         summary = []
         for ticker in tickers_list:

@@ -52,7 +52,7 @@ if st.session_state['selected_crypto'] is None:
     @st.cache_data(ttl=600)
     def get_crypto_prices():
         tickers_list = list(crypto_tickers.values())
-        data = yf.download(tickers_list, period="2d")
+        data = yf.download(tickers_list, period="3d")
         
         summary = []
         for ticker in tickers_list:

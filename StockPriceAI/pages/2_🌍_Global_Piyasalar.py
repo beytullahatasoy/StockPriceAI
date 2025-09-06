@@ -53,7 +53,7 @@ if st.session_state['selected_global_stock'] is None:
     @st.cache_data(ttl=600)
     def get_global_prices():
         tickers_list = list(global_tickers.values())
-        data = yf.download(tickers_list, period="2d")
+        data = yf.download(tickers_list, period="3d")
         
         summary = []
         for ticker in tickers_list:
