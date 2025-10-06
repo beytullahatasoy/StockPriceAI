@@ -13,108 +13,130 @@ Hisse senedi fiyat tahmini ve analizine yönelik uçtan uca bir makine öğrenim
 - 🚀 **Tahmin**: Son modeli yükleyip ileriye dönük tahmin üretme.
 - 🖥️ **(Opsiyonel) Arayüz**: Streamlit ile demo.
 
-## Proje Yapısı 
+## Proje Yapısı
 
 ```text
 StockPriceAI/
 ├─ data/
-│  ├─ raw/               # İndirilen ham veriler
-│  └─ processed/         # Temizlenmiş/veri setleri
-├─ notebooks/            # EDA ve prototipler
+│  ├─ raw/
+│  └─ processed/
+├─ notebooks/
 ├─ src/
-│  ├─ config.py          # Ayarlar ve sabitler
-│  ├─ data.py            # Veri indirme/okuma/ön işleme
-│  ├─ features.py        # Özellik mühendisliği
+│  ├─ config.py
+│  ├─ data.py
+│  ├─ features.py
 │  ├─ models/
-│  │  ├─ lstm.py         # LSTM mimarisi
-│  │  ├─ gru.py          # GRU mimarisi
-│  │  └─ baseline.py     # Baseline modeller
-│  ├─ train.py           # Eğitim döngüsü
-│  ├─ evaluate.py        # Metrikler ve rapor
-│  └─ predict.py         # Kaydedilmiş model ile tahmin
+│  │  ├─ lstm.py
+│  │  ├─ gru.py
+│  │  └─ baseline.py
+│  ├─ train.py
+│  ├─ evaluate.py
+│  └─ predict.py
 ├─ requirements.txt
 ├─ README.md
-└─ app.py                # (Opsiyonel) Streamlit demo
+└─ app.py
+```
 
-Kurulum
+## Kurulum
+
+### Sanal ortam
+
+```bash
 python -m venv .venv
-# Windows
+```
+
+### Ortamı aktifleştirme
+
+Windows:
+```bash
 .venv\Scripts\activate
-# macOS/Linux
+```
+
+macOS / Linux:
+```bash
 source .venv/bin/activate
+```
 
+### Bağımlılıklar
 
-Bağımlılıklar:
-
+```bash
 pip install -r requirements.txt
+```
 
+`requirements.txt` yoksa örnek:
 
-Örnek requirements.txt (yoksa):
-
+```text
 pandas
 numpy
 scikit-learn
 matplotlib
 yfinance
-tensorflow    # veya torch
+tensorflow   # veya torch
+```
 
-Kullanım
-1) Veri hazırlama
+## Kullanım
+
+### 1) Veri hazırlama
+
+```bash
 python -m src.data --symbol AAPL --start 2015-01-01 --end 2025-01-01 --interval 1d
 python -m src.features --symbol AAPL --window 60
+```
 
-2) Model eğitimi
+### 2) Model eğitimi
+
+```bash
 python -m src.train --model lstm --symbol AAPL --epochs 20 --batch 64
 # Alternatif:
 python -m src.train --model gru --symbol AAPL --epochs 20 --batch 64
+```
 
-3) Değerlendirme
+### 3) Değerlendirme
+
+```bash
 python -m src.evaluate --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt
+```
 
-4) Tahmin
+### 4) Tahmin
+
+```bash
 python -m src.predict --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt --horizon 30
+```
 
-5) (Opsiyonel) Arayüz
+### 5) (Opsiyonel) Arayüz
+
+```bash
 streamlit run app.py
+```
 
-Yapılandırma
+## Yapılandırma
 
-src/config.py üzerinden:
+`src/config.py` içinden:
 
-SEQ_LEN (pencere boyutu)
+- `SEQ_LEN`
+- `TRAIN_SPLIT` / `VAL_SPLIT`
+- `EPOCHS` / `BATCH_SIZE` / `LR`
+- Model tipi (lstm / gru / baseline)
 
-TRAIN_SPLIT / VAL_SPLIT
+## Yol Haritası
 
-EPOCHS / BATCH_SIZE / LR
+- Hiperparametre optimizasyonu
+- Çoklu sembol desteği
+- Teknik indikatör eklemeleri (RSI, MACD vb.)
+- Model karşılaştırmaları
+- MLflow / DVC entegrasyonu
 
-Model tipi (lstm / gru / baseline)
+## Katkı
 
-Yol Haritası
+1. Fork alın  
+2. Yeni branch açın  
+3. Commit & Push  
+4. Pull Request gönderin
 
-Hiperparametre araması
-
-Çoklu sembol desteği
-
-Teknik indikatörler (RSI, MACD vb.)
-
-Model karşılaştırmaları
-
-MLflow / DVC ile model takibi
-
-Katkı
-
-Fork alın
-
-Yeni branch açın
-
-Commit → Push
-
-Pull Request gönderin
-
-Lisans
+## Lisans
 
 İsteğe bağlı olarak MIT lisansı eklenebilir.
 
-İletişim
+## İletişim
 
 Sorular ve öneriler için GitHub Issues bölümünü kullanabilirsiniz.
