@@ -1,9 +1,8 @@
-# StockPriceAI
+StockPriceAI
 
 Hisse senedi fiyat tahmini ve analizine yönelik uçtan uca bir makine öğrenimi projesi. Zaman serisi verilerini indirir, temizler, özellik mühendisliği uygular, çeşitli modelleri (örn. LSTM/GRU) eğitir ve performanslarını karşılaştırır. Son aşamada tek komutla tahmin üretip görselleştirme sağlar.
 
-Not: Proje yapısı kökteki StockPriceAI/ klasöründe organize edilmiştir. 
-GitHub
+Not: Proje yapısı kökteki StockPriceAI/ klasöründe organize edilmiştir. GitHub
 
 Özellikler
 
@@ -41,8 +40,7 @@ StockPriceAI/
 └─ app.py               # (Opsiyonel) Streamlit demo
 
 
-Klasör isimleri ve dosyalar mevcut yapına göre değiştirilebilir. Kökte Python kullanıldığı tespit edilmiştir. 
-GitHub
+Klasör isimleri ve dosyalar mevcut yapına göre değiştirilebilir. Kökte Python kullanıldığı tespit edilmiştir.
 
 Kurulum
 # 1) Ortam
@@ -128,7 +126,7 @@ PR oluştur (test ve örnek eklemeye çalış)
 
 Lisans
 
-Bu proje MIT lisansı ile yayınlanabilir (isteğe bağlı). LICENSE dosyası ekleyebilirsin.
+Bu proje MIT lisansı ile yayınlanabilir (isteğe bağlı). LICENSE dosyası eklenebilir.
 
 İletişim
 
