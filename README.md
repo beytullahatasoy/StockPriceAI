@@ -103,7 +103,7 @@ python -m src.evaluate --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt
 python -m src.predict --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt --horizon 30
 ```
 
-### 5) (Opsiyonel) Arayüz
+### 5) Arayüz
 
 ```bash
 streamlit run app.py
@@ -132,10 +132,6 @@ streamlit run app.py
 2. Yeni branch açın  
 3. Commit & Push  
 4. Pull Request gönderin
-
-## Lisans
-
-İsteğe bağlı olarak MIT lisansı eklenebilir.
 
 ## İletişim
 
