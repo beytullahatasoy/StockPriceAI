@@ -1,137 +1,61 @@
 # StockPriceAI
 
-Hisse senedi fiyat tahmini ve analizine yönelik uçtan uca bir makine öğrenimi projesi. Zaman serisi verilerini indirir, temizler, özellik mühendisliği uygular, çeşitli modelleri (örn. LSTM/GRU) eğitir ve performanslarını karşılaştırır. Son aşamada tek komutla tahmin üretip görselleştirme sağlar.
+StockPriceAI, finansal piyasaları analiz etmek ve farklı varlık gruplarının (BIST100, global piyasalar, kripto paralar) trendlerini anlamak için geliştirilmiş bir yapay zeka destekli analiz aracıdır. Bu proje kapsamında hem teknik analizler, hem de karşılaştırmalı modelleme yapılmaktadır.
 
 > Not: Proje yapısı kökteki `StockPriceAI/` klasöründe organize edilmiştir.
 
 ## Özellikler
 
-- 📥 **Veri alma**: Seçilen semboller için tarihsel fiyat verileri (örn. Yahoo Finance).
-- 🧹 **Ön işleme**: Eksik değer yönetimi, ölçekleme, pencereleme (sliding window).
-- 🧠 **Modeller**: LSTM / GRU tabanlı derin öğrenme ve ML tabanlı baseline’lar.
-- 📊 **Değerlendirme**: MAE/MSE/RMSE, görselleştirme (train/val loss, gerçek vs. tahmin).
-- 🚀 **Tahmin**: Son modeli yükleyip ileriye dönük tahmin üretme.
-- 🖥️ **(Opsiyonel) Arayüz**: Streamlit ile demo.
+- 📥 **BIST100 Analizi**: Türkiye borsa endeksi için veri analizi
+- 🌍 **Global Piyasalar**: Dünya borsalarına ait trend analizi
+- 💰 **Kripto Piyasası**: Kripto paraların zaman serisi analizi
+- 🧠 **Model Eğitimi**: LSTM / GRU gibi modellerin karşılaştırmalı eğitimi
+- 📊 **Değerlendirme**: MAE/MSE/RMSE, loss grafikleri, gerçek vs. tahmin
+- 🚀 **Tahmin**: Eğitimli modellerle ileriye dönük tahmin
+- 🖥️ **Arayüz**: Streamlit üzerinden demo kullanımı
 
 ## Proje Yapısı
 
 ```text
 StockPriceAI/
-├─ data/
-│  ├─ raw/
-│  └─ processed/
-├─ notebooks/
-├─ src/
-│  ├─ config.py
-│  ├─ data.py
-│  ├─ features.py
-│  ├─ models/
-│  │  ├─ lstm.py
-│  │  ├─ gru.py
-│  │  └─ baseline.py
-│  ├─ train.py
-│  ├─ evaluate.py
-│  └─ predict.py
-├─ requirements.txt
-├─ README.md
-└─ app.py
+├─ app.py                     # Ana uygulama (Streamlit giriş noktası)
+├─ model_utils.py             # Model fonksiyonları ve yardımcı metodlar
+├─ pages/                     # Farklı analiz modülleri
+│  ├─ 1_BIST100_Analiz.py
+│  ├─ 2_Global_Piyasalar.py
+│  ├─ 3_Kripto_Analiz.py
+│  └─ 4_Karşılaştırmalı_Model_Eğitimi.py
+├─ __pycache__/               # Python cache (ignore edilebilir)
+└─ README.md
 ```
 
-## Kurulum
+## Kurulum ve Çalıştırma
 
-### Sanal ortam
+### Repoyu klonla:
 
 ```bash
-python -m venv .venv
+git clone https://github.com/beytullahatasoy/StockPriceAI.git
+cd StockPriceAI
 ```
 
-### Ortamı aktifleştirme
-
-Windows:
-```bash
-.venv\Scripts\activate
-```
-
-macOS / Linux:
-```bash
-source .venv/bin/activate
-```
-
-### Bağımlılıklar
+### Sanal ortam oluştur ve bağımlılıkları yükle:
 
 ```bash
+python -m venv venv
+source venv/bin/activate   # Mac/Linux
+venv\Scripts\activate      # Windows
+
 pip install -r requirements.txt
 ```
-
-`requirements.txt` yoksa örnek:
-
-```text
-pandas
-numpy
-scikit-learn
-matplotlib
-yfinance
-tensorflow   # veya torch
-```
-
-## Kullanım
-
-### 1) Veri hazırlama
-
-```bash
-python -m src.data --symbol AAPL --start 2015-01-01 --end 2025-01-01 --interval 1d
-python -m src.features --symbol AAPL --window 60
-```
-
-### 2) Model eğitimi
-
-```bash
-python -m src.train --model lstm --symbol AAPL --epochs 20 --batch 64
-# Alternatif:
-python -m src.train --model gru --symbol AAPL --epochs 20 --batch 64
-```
-
-### 3) Değerlendirme
-
-```bash
-python -m src.evaluate --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt
-```
-
-### 4) Tahmin
-
-```bash
-python -m src.predict --symbol AAPL --model_path artifacts/AAPL_lstm_best.pt --horizon 30
-```
-
-### 5) Arayüz
 
 ```bash
 streamlit run app.py
 ```
 
-## Yapılandırma
+Tarayıcıda http://localhost:8501 adresine git.
 
-`src/config.py` içinden:
+![StockPriceAI - Ana Sayfa](assets/screenshot1.png)
 
-- `SEQ_LEN`
-- `TRAIN_SPLIT` / `VAL_SPLIT`
-- `EPOCHS` / `BATCH_SIZE` / `LR`
-- Model tipi (lstm / gru / baseline)
-
-## Yol Haritası
-
-- Hiperparametre optimizasyonu
-- Çoklu sembol desteği
-- Teknik indikatör eklemeleri (RSI, MACD vb.)
-- Model karşılaştırmaları
-- MLflow / DVC entegrasyonu
-
-## Katkı
-
-1. Fork alın  
-2. Yeni branch açın  
-3. Commit & Push  
-4. Pull Request gönderin
 
 ## İletişim
 
