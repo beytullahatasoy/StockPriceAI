@@ -49,13 +49,17 @@ pip install -r requirements.txt
 ```
 
 ```bash
-streamlit run app.py
+streamlit run app.py    #Tarayıcıda http://localhost:8501 adresine git.
 ```
 
-Tarayıcıda http://localhost:8501 adresine git.
+## Uygulamadan bazı görüntüler:
 
-![StockPriceAI - Ana Sayfa](assets/screenshot1.png)
-
+### Ana dayfa:
+![StockPriceAI - Ana Sayfa](assets/anaSayfa.png)
+### Bist 100 sayfası:
+![StockPriceAI - Bist100](assets/bist100.png)
+### LSTM VE GRU Karşılaştırması:
+![StockPriceAI - LSTM VE GRU Karşılaştırma](assets/karsılastırma.png)
 
 ## İletişim
 
